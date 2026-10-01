@@ -33,3 +33,12 @@ jobs:
 
       - name: Lint
         run: pre-commit run -a
+
+      - name: Test bridgev2
+        run: go test -race -tags goolm ./...
+
+      - name: Build bridgev2
+        run: ./build.sh
+
+      - name: Smoke test provisioning
+        run: python3 tests/provisioning_smoke.py --binary ./mautrix-discord

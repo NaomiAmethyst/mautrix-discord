@@ -1,7 +1,243 @@
+# Network-specific config options
+network:
+    # Explicit channels take precedence over guild discovery. With the default
+    # bot-only configuration, these are the only channels that can be bridged.
+    # Supply tokens through provisioning or the login command, never in this file.
+    channels: []
+    # - id: "123456789012345678"
+    #   room_id: "!room:example.com"       # Bind an existing Matrix room on connect.
+    #   relay_login_id: "987654321098765432" # Discord bot user ID from login.
+    #   webhook_url: ""                    # Optional existing incoming webhook.
+    #   sync:                              # Override only the fields listed here.
+    #       room_name: false
+    #       room_topic: false
+
+    # Create rooms for explicit channels without room_id when the account connects.
+    auto_create_portals: false
+    create_webhooks: true
+    webhook_name: Matrix bridge
+    webhook_avatars: true
+    prefix_webhook_messages: false
+    # Allow explicit user mentions. Everyone/here additionally requires Matrix
+    # permission to send room notifications. Role mentions are not enabled.
+    allow_mentions: false
+    max_attachment_size: 26214400
+
+    # Optional legacy account workflows; bot relay does not require these.
+    personal_accounts: false
+    sync_dms: true
+    # Group personal DMs into a dedicated Matrix space.
+    dm_spaces: true
+    # 0 creates no DMs at startup; -1 creates all accessible DMs.
+    startup_private_channel_create_limit: 20
+    forbid_dming_strangers: false
+    # Select guilds for discovery, independently of the explicit channel list.
+    # Modes: nothing, if-portal-exists, create-on-message, everything.
+    # Personal users can also choose guilds using provisioning or the guilds command.
+    # Changing bot guild modes through commands/provisioning requires bridge admin.
+    guilds: []
+    # - id: "123456789012345678"
+    #   mode: create-on-message
+    guild_spaces: true
+    restricted_rooms: false
+    mute_channels_on_create: false
+    delete_portal_on_channel_delete: false
+    delete_guild_on_leave: false
+
+    # Empty templates use Discord names, global names, and friend nicknames.
+    # Display name fields include User fields, Webhook and Application.
+    # Channel fields: Name, ParentName, GuildName, NSFW, Type. Guild fields: Guild fields.
+    displayname_template: ""
+    channel_name_template: ""
+    guild_name_template: ""
+    proxy: ""
+
+    # Media upload reuse: always, unencrypted, never. Encryption is still applied
+    # whenever an attachment is uploaded into an encrypted Matrix room.
+    cache_media: unencrypted
+    # Use Discord's separate attachment upload API for personal-account sends.
+    use_discord_cdn_upload: true
+    custom_emoji_reactions: true
+    embed_fields_as_tables: false
+    # Join Discord threads when Matrix read receipts indicate they were opened.
+    autojoin_threads: false
+    # Lottie stickers require lottieconverter and, for animated formats, ffmpeg.
+    # Targets: disable, png, gif, webp, webm.
+    animated_sticker:
+        target: disable
+        width: 160
+        height: 160
+        fps: 30
+
+    # Defaults suit relay rooms with separately managed Matrix metadata. Per-channel
+    # overrides also govern threads that share their parent's room.
+    sync:
+        messages: true
+        attachments: true
+        embeds: true
+        stickers: true
+        edits: true
+        deletes: true
+        reactions: true
+        typing: false
+        read_receipts: false
+        user_profiles: true
+        room_name: false
+        room_topic: false
+        room_avatar: false
+        threads: false
+        backfill: false
+
+bridge:
+    # The prefix for commands. Only required in non-management rooms.
+    command_prefix: '!discord'
+    # Should the bridge create a space for each login containing the rooms that account is in?
+    personal_filtering_spaces: false
+    # Whether the bridge should set names and avatars explicitly for DM portals.
+    # This is only necessary when using clients that don't support MSC4171.
+    private_chat_portal_meta: true
+    # Should events be handled asynchronously within portal rooms?
+    # If true, events may end up being out of order, but slow events won't block other ones.
+    # This is not yet safe to use.
+    async_events: false
+    # Should every user have their own portals rather than sharing them?
+    # By default, users who are in the same group on the remote network will be
+    # in the same Matrix room bridged to that group. If this is set to true,
+    # every user will get their own Matrix room instead.
+    # SETTING THIS IS IRREVERSIBLE AND POTENTIALLY DESTRUCTIVE IF PORTALS ALREADY EXIST.
+    split_portals: false
+    # Should the bridge resend `m.bridge` events to all portals on startup?
+    resend_bridge_info: false
+    # Should `m.bridge` events be sent without a state key?
+    # By default, the bridge uses a unique key that won't conflict with other bridges.
+    no_bridge_info_state_key: false
+    # Should bridge connection status be sent to the management room as `m.notice` events?
+    # These contain the same data that can be posted to an external HTTP server using homeserver -> status_endpoint.
+    # Allowed values: none, errors, all
+    bridge_status_notices: errors
+    # How long after an unknown error should the bridge attempt a full reconnect?
+    # Must be at least 1 minute. The bridge will add an extra ±20% jitter to this value.
+    unknown_error_auto_reconnect: null
+
+    # Should leaving Matrix rooms be bridged as leaving groups on the remote network?
+    bridge_matrix_leave: false
+    # Should `m.notice` messages be bridged?
+    bridge_notices: false
+    # Should room tags only be synced when creating the portal? Tags mean things like favorite/pin and archive/low priority.
+    # Tags currently can't be synced back to the remote network, so a continuous sync means tagging from Matrix will be undone.
+    tag_only_on_create: true
+    # List of tags to allow bridging. If empty, no tags will be bridged.
+    only_bridge_tags: [m.favourite, m.lowpriority]
+    # Should room mute status only be synced when creating the portal?
+    # Like tags, mutes can't currently be synced back to the remote network.
+    mute_only_on_create: true
+    # Should the bridge check the db to ensure that incoming events haven't been handled before
+    deduplicate_matrix_messages: false
+    # Should cross-room reply metadata be bridged?
+    # Most Matrix clients don't support this and servers may reject such messages too.
+    cross_room_replies: false
+
+    # What should be done to portal rooms when a user logs out or is logged out?
+    # Permitted values:
+    #   nothing - Do nothing, let the user stay in the portals
+    #   kick - Remove the user from the portal rooms, but don't delete them
+    #   unbridge - Remove all ghosts in the room and disassociate it from the remote chat
+    #   delete - Remove all ghosts and users from the room (i.e. delete it)
+    cleanup_on_logout:
+        # Should cleanup on logout be enabled at all?
+        enabled: false
+        # Settings for manual logouts (explicitly initiated by the Matrix user)
+        manual:
+            # Action for private portals which will never be shared with other Matrix users.
+            private: nothing
+            # Action for portals with a relay user configured.
+            relayed: nothing
+            # Action for portals which may be shared, but don't currently have any other Matrix users.
+            shared_no_users: nothing
+            # Action for portals which have other logged-in Matrix users.
+            shared_has_users: nothing
+        # Settings for credentials being invalidated (initiated by the remote network, possibly through user action).
+        # Keys have the same meanings as in the manual section.
+        bad_credentials:
+            private: nothing
+            relayed: nothing
+            shared_no_users: nothing
+            shared_has_users: nothing
+
+    # Settings for relay mode
+    relay:
+        # Whether relay mode should be allowed. If allowed, the set-relay command can be used to turn any
+        # authenticated user into a relaybot for that chat.
+        enabled: true
+        # Should only admins be allowed to set themselves as relay users?
+        # If true, non-admins can only set users listed in default_relays as relays in a room.
+        admin_only: true
+        # List of user login IDs which anyone can set as a relay, as long as the relay user is in the room.
+        default_relays: []
+        # The formats to use when sending messages via the relaybot.
+        # Available variables:
+        #   .Sender.UserID - The Matrix user ID of the sender.
+        #   .Sender.Displayname - The display name of the sender (if set).
+        #   .Sender.RequiresDisambiguation - Whether the sender's name may be confused with the name of another user in the room.
+        #   .Sender.DisambiguatedName - The disambiguated name of the sender. This will be the displayname if set,
+        #                               plus the user ID in parentheses if the displayname is not unique.
+        #                               If the displayname is not set, this is just the user ID.
+        #   .Message - The `formatted_body` field of the message.
+        #   .Caption - The `formatted_body` field of the message, if it's a caption. Otherwise an empty string.
+        #   .FileName - The name of the file being sent.
+        message_formats:
+            m.text: "{{ .Message }}"
+            m.notice: "{{ .Message }}"
+            m.emote: "{{ .Message }}"
+            m.file: "{{ .Caption }}"
+            m.image: "{{ .Caption }}"
+            m.audio: "{{ .Caption }}"
+            m.video: "{{ .Caption }}"
+            m.location: "{{ .Message }}"
+        # For networks that support per-message displaynames (i.e. Slack and Discord), the template for those names.
+        # This has all the Sender variables available under message_formats (but without the .Sender prefix).
+        # Note that you need to manually remove the displayname from message_formats above.
+        displayname_format: "{{ .DisambiguatedName }}"
+
+    # Permissions for using the bridge.
+    # Permitted values:
+    #    relay - Talk through the relaybot (if enabled), no access otherwise
+    # commands - Access to use commands in the bridge, but not login.
+    #     user - Access to use the bridge with puppeting.
+    #    admin - Full access, user level with some additional administration tools.
+    # Permitted keys:
+    #        * - All Matrix users
+    #   domain - All users on that homeserver
+    #     mxid - Specific user
+    permissions:
+        "*": relay
+        "example.com": user
+        "@admin:example.com": admin
+
+# Config for the bridge's database.
+database:
+    # The database type. "sqlite3-fk-wal" and "postgres" are supported.
+    type: postgres
+    # The database URI.
+    #   SQLite: A raw file path is supported, but `file:<path>?_txlock=immediate` is recommended.
+    #           https://github.com/mattn/go-sqlite3#connection-string
+    #   Postgres: Connection string. For example, postgres://user:password@host/database?sslmode=disable
+    #             To connect via Unix socket, use something like postgres:///dbname?host=/var/run/postgresql
+    uri: postgres://user:password@host/database?sslmode=disable
+    # Maximum number of connections.
+    max_open_conns: 5
+    max_idle_conns: 1
+    # Maximum connection idle time and lifetime before they're closed. Disabled if null.
+    # Parsed with https://pkg.go.dev/time#ParseDuration
+    max_conn_idle_time: null
+    max_conn_lifetime: null
+
 # Homeserver details.
 homeserver:
     # The address that this appservice can use to connect to the homeserver.
-    address: https://matrix.example.com
+    # Local addresses without HTTPS are generally recommended when the bridge is running on the same machine,
+    # but https also works if they run on different machines.
+    address: http://example.localhost:8008
     # The domain of the homeserver (also known as server_name, used for MXIDs, etc).
     domain: example.com
 
@@ -9,11 +245,15 @@ homeserver:
     # Standard Matrix homeservers like Synapse, Dendrite and Conduit should just use "standard" here.
     software: standard
     # The URL to push real-time bridge status to.
-    # If set, the bridge will make POST requests to this URL whenever a user's discord connection state changes.
+    # If set, the bridge will make POST requests to this URL whenever a user's remote network connection state changes.
     # The bridge will use the appservice as_token to authorize requests.
-    status_endpoint: null
+    status_endpoint:
     # Endpoint for reporting per-message status.
-    message_send_checkpoint_endpoint: null
+    # If set, the bridge will make POST requests to this URL when processing a message from Matrix.
+    # It will make one request when receiving the message (step BRIDGE), one after decrypting if applicable
+    # (step DECRYPTED) and one after sending to the remote network (step REMOTE). Errors will also be reported.
+    # The bridge will use the appservice as_token to authorize requests.
+    message_send_checkpoint_endpoint:
     # Does the homeserver support https://github.com/matrix-org/matrix-spec-proposals/pull/2246?
     async_media: false
 
@@ -25,32 +265,22 @@ homeserver:
     ping_interval_seconds: 0
 
 # Application service host/registration related details.
-# Changing these values requires regeneration of the registration.
+# Changing these values requires regeneration of the registration (except when noted otherwise)
 appservice:
     # The address that the homeserver can use to connect to this appservice.
+    # Like the homeserver address, a local non-https address is recommended when the bridge is on the same machine.
+    # If the bridge is elsewhere, you must secure the connection yourself (e.g. with https or wireguard)
+    # If you want to use https, you need to use a reverse proxy. The bridge does not have TLS support built in.
     address: http://localhost:29334
+    # A public address that external services can use to reach this appservice.
+    # This is only needed for things like public media. A reverse proxy is generally necessary when using this field.
+    # This value doesn't affect the registration file.
+    public_address: https://bridge.example.com
 
     # The hostname and port where this appservice should listen.
-    hostname: 0.0.0.0
+    # For Docker, you generally have to change the hostname to 0.0.0.0.
+    hostname: 127.0.0.1
     port: 29334
-
-    # Database config.
-    database:
-        # The database type. "sqlite3-fk-wal" and "postgres" are supported.
-        type: postgres
-        # The database URI.
-        #   SQLite: A raw file path is supported, but `file:<path>?_txlock=immediate` is recommended.
-        #           https://github.com/mattn/go-sqlite3#connection-string
-        #   Postgres: Connection string. For example, postgres://user:password@host/database?sslmode=disable
-        #             To connect via Unix socket, use something like postgres:///dbname?host=/var/run/postgresql
-        uri: postgres://user:password@host/database?sslmode=disable
-        # Maximum number of connections. Mostly relevant for Postgres.
-        max_open_conns: 20
-        max_idle_conns: 2
-        # Maximum connection idle time and lifetime before they're closed. Disabled if null.
-        # Parsed with https://pkg.go.dev/time#ParseDuration
-        max_conn_idle_time: null
-        max_conn_lifetime: null
 
     # The unique ID of this appservice.
     id: discord
@@ -61,325 +291,244 @@ appservice:
         # Display name and avatar for bot. Set to "remove" to remove display name/avatar, leave empty
         # to leave display name/avatar as-is.
         displayname: Discord bridge bot
-        avatar: mxc://maunium.net/nIdEykemnwdisvHbpxflpDlC
+        avatar:
 
-    # Whether or not to receive ephemeral events via appservice transactions.
-    # Requires MSC2409 support (i.e. Synapse 1.22+).
+    # Whether to receive ephemeral events via appservice transactions.
     ephemeral_events: true
-
     # Should incoming events be handled asynchronously?
     # This may be necessary for large public instances with lots of messages going through.
     # However, messages will not be guaranteed to be bridged in the same order they were sent in.
+    # This value doesn't affect the registration file.
     async_transactions: false
 
     # Authentication tokens for AS <-> HS communication. Autogenerated; do not modify.
     as_token: "This value is generated when generating the registration"
     hs_token: "This value is generated when generating the registration"
 
-# Bridge config
-bridge:
-    # Localpart template of MXIDs for Discord users.
-    # {{.}} is replaced with the internal ID of the Discord user.
+    # Localpart template of MXIDs for remote users.
+    # {{.}} is replaced with the internal ID of the user.
     username_template: discord_{{.}}
-    # Displayname template for Discord users. This is also used as the room name in DMs if private_chat_portal_meta is enabled.
-    # Available variables:
-    #   .ID - Internal user ID
-    #   .Username - Legacy display/username on Discord
-    #   .GlobalName - New displayname on Discord
-    #   .Discriminator - The 4 numbers after the name on Discord
-    #   .Bot - Whether the user is a bot
-    #   .System - Whether the user is an official system user
-    #   .Webhook - Whether the user is a webhook and is not an application
-    #   .Application - Whether the user is an application
-    displayname_template: '{{if .Webhook}}Webhook{{else}}{{or .GlobalName .Username}}{{if .Bot}} (bot){{end}}{{end}}'
-    # Displayname template for Discord channels (bridged as rooms, or spaces when type=4).
-    # Available variables:
-    #   .Name - Channel name, or user displayname (pre-formatted with displayname_template) in DMs.
-    #   .ParentName - Parent channel name (used for categories).
-    #   .GuildName - Guild name.
-    #   .NSFW - Whether the channel is marked as NSFW.
-    #   .Type - Channel type (see values at https://github.com/bwmarrin/discordgo/blob/v0.25.0/structs.go#L251-L267)
-    channel_name_template: '{{if or (eq .Type 3) (eq .Type 4)}}{{.Name}}{{else}}#{{.Name}}{{end}}'
-    # Displayname template for Discord guilds (bridged as spaces).
-    # Available variables:
-    #   .Name - Guild name
-    guild_name_template: '{{.Name}}'
-    # Whether to explicitly set the avatar and room name for private chat portal rooms.
-    # If set to `default`, this will be enabled in encrypted rooms and disabled in unencrypted rooms.
-    # If set to `always`, all DM rooms will have explicit names and avatars set.
-    # If set to `never`, DM rooms will never have names and avatars set.
-    private_chat_portal_meta: default
 
-    # Publicly accessible base URL that Discord can use to reach the bridge, used for avatars in relay mode.
-    # If not set, avatars will not be bridged. Only the /mautrix-discord/avatar/{server}/{id}/{hash} endpoint is used on this address.
-    # This should not have a trailing slash, the endpoint above will be appended to the provided address.
-    public_address: null
-    # A random key used to sign the avatar URLs. The bridge will only accept requests with a valid signature.
-    avatar_proxy_key: generate
-
-    portal_message_buffer: 128
-
-    # Number of private channel portals to create on bridge startup.
-    # Other portals will be created when receiving messages.
-    startup_private_channel_create_limit: 5
-    # Should the bridge send a read receipt from the bridge bot when a message has been sent to Discord?
-    delivery_receipts: false
+# Config options that affect the Matrix connector of the bridge.
+matrix:
     # Whether the bridge should send the message status as a custom com.beeper.message_send_status event.
     message_status_events: false
+    # Whether the bridge should send a read receipt after successfully bridging a message.
+    delivery_receipts: false
     # Whether the bridge should send error notices via m.notice events when a message fails to bridge.
     message_error_notices: true
-    # Should the bridge use space-restricted join rules instead of invite-only for guild rooms?
-    # This can avoid unnecessary invite events in guild rooms when members are synced in.
-    restricted_rooms: false
-    # Should the bridge automatically join the user to threads on Discord when the thread is opened on Matrix?
-    # This only works with clients that support thread read receipts (MSC3771 added in Matrix v1.4).
-    autojoin_thread_on_open: true
-    # Should inline fields in Discord embeds be bridged as HTML tables to Matrix?
-    # Tables aren't supported in all clients, but are the only way to emulate the Discord inline field UI.
-    embed_fields_as_tables: true
-    # Should guild channels be muted when the portal is created? This only meant for single-user instances,
-    # it won't mute it for all users if there are multiple Matrix users in the same Discord guild.
-    mute_channels_on_create: false
-    # Should the bridge update the m.direct account data event when double puppeting is enabled.
-    # Note that updating the m.direct event is not atomic (except with mautrix-asmux)
-    # and is therefore prone to race conditions.
-    sync_direct_chat_list: false
-    # Set this to true to tell the bridge to re-send m.bridge events to all rooms on the next run.
-    # This field will automatically be changed back to false after it, except if the config file is not writable.
-    resend_bridge_info: false
-    # Should incoming custom emoji reactions be bridged as mxc:// URIs?
-    # If set to false, custom emoji reactions will be bridged as the shortcode instead, and the image won't be available.
-    custom_emoji_reactions: true
-    # Should the bridge attempt to completely delete portal rooms when a channel is deleted on Discord?
-    # If true, the bridge will try to kick Matrix users from the room. Otherwise, the bridge only makes ghosts leave.
-    delete_portal_on_channel_delete: false
-    # Should the bridge delete all portal rooms when you leave a guild on Discord?
-    # This only applies if the guild has no other Matrix users on this bridge instance.
-    delete_guild_on_leave: true
-    # Whether or not created rooms should have federation enabled.
-    # If false, created portal rooms will never be federated.
+    # Whether the bridge should update the m.direct account data event when double puppeting is enabled.
+    sync_direct_chat_list: true
+    # Whether created rooms should have federation enabled. If false, created portal rooms
+    # will never be federated. Changing this option requires recreating rooms.
     federate_rooms: true
-    # Prefix messages from webhooks with the profile info? This can be used along with a custom displayname_template
-    # to better handle webhooks that change their name all the time (like ones used by bridges).
-    #
-    # This will use the fallback mode in MSC4144, which means clients that support MSC4144 will not show the prefix
-    # (and will instead show the name and avatar as the message sender).
-    prefix_webhook_messages: true
-    # Bridge webhook avatars?
-    enable_webhook_avatars: false
-    # Should the bridge upload media to the Discord CDN directly before sending the message when using a user token,
-    # like the official client does? The other option is sending the media in the message send request as a form part
-    # (which is always used by bots and webhooks).
-    use_discord_cdn_upload: true
-    # Should the bridge forbid direct messages from users to other users who they aren't friends with? Discord generally
-    # considers this to be a "risky" action. Note that the bridge will conservatively reject all outgoing DMs from users
-    # until it has synced that user's relationships from Discord.
-    forbid_dming_strangers: true
-    # Proxy for Discord connections
-    proxy:
-    # Should mxc uris copied from Discord be cached?
-    # This can be `never` to never cache, `unencrypted` to only cache unencrypted mxc uris, or `always` to cache everything.
-    # If you have a media repo that generates non-unique mxc uris, you should set this to never.
-    cache_media: unencrypted
-    # Settings for converting Discord media to custom mxc:// URIs instead of reuploading.
-    # More details can be found at https://docs.mau.fi/bridges/go/discord/direct-media.html
-    direct_media:
-        # Should custom mxc:// URIs be used instead of reuploading media?
+    # The threshold as bytes after which the bridge should roundtrip uploads via the disk
+    # rather than keeping the whole file in memory.
+    upload_file_threshold: 5242880
+
+# Segment-compatible analytics endpoint for tracking some events, like provisioning API login and encryption errors.
+analytics:
+    # API key to send with tracking requests. Tracking is disabled if this is null.
+    token: null
+    # Address to send tracking requests to.
+    url: https://api.segment.io/v1/track
+    # Optional user ID for tracking events. If null, defaults to using Matrix user ID.
+    user_id: null
+
+# Settings for provisioning API
+provisioning:
+    # Shared secret for authentication. If set to "generate" or null, a random secret will be generated,
+    # or if set to "disable", the provisioning API will be disabled. Must be at least 16 characters.
+    shared_secret: generate
+    # Whether to allow provisioning API requests to be authed using Matrix access tokens.
+    # This follows the same rules as double puppeting to determine which server to contact to check the token,
+    # which means that by default, it only works for users on the same server as the bridge.
+    allow_matrix_auth: true
+    # Enable debug API at /debug with provisioning authentication.
+    debug_endpoints: false
+    # Enable session transfers between bridges. Note that this only validates Matrix or shared secret
+    # auth before passing live network client credentials down in the response.
+    enable_session_transfers: false
+
+# Some networks require publicly accessible media download links (e.g. for user avatars when using Discord webhooks).
+# These settings control whether the bridge will provide such public media access.
+public_media:
+    # Should public media be enabled at all?
+    # The public_address field under the appservice section MUST be set when enabling public media.
+    enabled: false
+    # A key for signing public media URLs.
+    # If set to "generate", a random key will be generated.
+    signing_key: generate
+    # Number of seconds that public media URLs are valid for.
+    # If set to 0, URLs will never expire.
+    expiry: 0
+    # Length of hash to use for public media URLs. Must be between 0 and 32.
+    hash_length: 32
+
+# Settings for converting remote media to custom mxc:// URIs instead of reuploading.
+# More details can be found at https://docs.mau.fi/bridges/go/discord/direct-media.html
+direct_media:
+    # Should custom mxc:// URIs be used instead of reuploading media?
+    enabled: false
+    # The server name to use for the custom mxc:// URIs.
+    # This server name will effectively be a real Matrix server, it just won't implement anything other than media.
+    # You must either set up .well-known delegation from this domain to the bridge, or proxy the domain directly to the bridge.
+    server_name: discord-media.example.com
+    # Optionally a custom .well-known response. This defaults to `server_name:443`
+    well_known_response:
+    # Optionally specify a custom prefix for the media ID part of the MXC URI.
+    media_id_prefix:
+    # If the remote network supports media downloads over HTTP, then the bridge will use MSC3860/MSC3916
+    # media download redirects if the requester supports it. Optionally, you can force redirects
+    # and not allow proxying at all by setting this to false.
+    # This option does nothing if the remote network does not support media downloads over HTTP.
+    allow_proxy: true
+    # Matrix server signing key to make the federation tester pass, same format as synapse's .signing.key file.
+    # This key is also used to sign the mxc:// URIs to ensure only the bridge can generate them.
+    server_key: generate
+
+# Settings for backfilling messages.
+# Note that the exact way settings are applied depends on the network connector.
+# See https://docs.mau.fi/bridges/general/backfill.html for more details.
+backfill:
+    # Whether to do backfilling at all.
+    enabled: false
+    # Maximum number of messages to backfill in empty rooms.
+    max_initial_messages: 50
+    # Maximum number of missed messages to backfill after bridge restarts.
+    max_catchup_messages: 500
+    # If a backfilled chat is older than this number of hours,
+    # mark it as read even if it's unread on the remote network.
+    unread_hours_threshold: 720
+    # Settings for backfilling threads within other backfills.
+    threads:
+        # Maximum number of messages to backfill in a new thread.
+        max_initial_messages: 50
+    # Settings for the backwards backfill queue. This only applies when connecting to
+    # Beeper as standard Matrix servers don't support inserting messages into history.
+    queue:
+        # Should the backfill queue be enabled?
         enabled: false
-        # The server name to use for the custom mxc:// URIs.
-        # This server name will effectively be a real Matrix server, it just won't implement anything other than media.
-        # You must either set up .well-known delegation from this domain to the bridge, or proxy the domain directly to the bridge.
-        server_name: discord-media.example.com
-        # Optionally a custom .well-known response. This defaults to `server_name:443`
-        well_known_response:
-        # The bridge supports MSC3860 media download redirects and will use them if the requester supports it.
-        # Optionally, you can force redirects and not allow proxying at all by setting this to false.
-        allow_proxy: true
-        # Matrix server signing key to make the federation tester pass, same format as synapse's .signing.key file.
-        # This key is also used to sign the mxc:// URIs to ensure only the bridge can generate them.
-        server_key: generate
-    # Settings for converting animated stickers.
-    animated_sticker:
-        # Format to which animated stickers should be converted.
-        # disable - No conversion, send as-is (lottie JSON)
-        # png - converts to non-animated png (fastest)
-        # gif - converts to animated gif
-        # webm - converts to webm video, requires ffmpeg executable with vp9 codec and webm container support
-        # webp - converts to animated webp, requires ffmpeg executable with webp codec/container support
-        target: webp
-        # Arguments for converter. All converters take width and height.
-        args:
-            width: 320
-            height: 320
-            fps: 25 # only for webm, webp and gif (2, 5, 10, 20 or 25 recommended)
-    # Servers to always allow double puppeting from
-    double_puppet_server_map:
-        example.com: https://example.com
-    # Allow using double puppeting from any server with a valid client .well-known file.
-    double_puppet_allow_discovery: false
-    # Shared secrets for https://github.com/devture/matrix-synapse-shared-secret-auth
+        # Number of messages to backfill in one batch.
+        batch_size: 100
+        # Delay between batches in seconds.
+        batch_delay: 20
+        # Maximum number of batches to backfill per portal.
+        # If set to -1, all available messages will be backfilled.
+        max_batches: -1
+        # Optional network-specific overrides for max batches.
+        # Interpretation of this field depends on the network connector.
+        max_batches_override: {}
+
+# Settings for enabling double puppeting
+double_puppet:
+    # Servers to always allow double puppeting from.
+    # This is only for other servers and should NOT contain the server the bridge is on.
+    servers:
+        anotherserver.example.org: https://matrix.anotherserver.example.org
+    # Whether to allow client API URL discovery for other servers. When using this option,
+    # users on other servers can use double puppeting even if their server URLs aren't
+    # explicitly added to the servers map above.
+    allow_discovery: false
+    # Shared secrets for automatic double puppeting.
+    # See https://docs.mau.fi/bridges/general/double-puppeting.html for instructions.
+    secrets:
+        example.com: as_token:foobar
+
+# End-to-bridge encryption support options.
+#
+# See https://docs.mau.fi/bridges/general/end-to-bridge-encryption.html for more info.
+encryption:
+    # Whether to enable encryption at all. If false, the bridge will not function in encrypted rooms.
+    allow: false
+    # Whether to force-enable encryption in all bridged rooms.
+    default: false
+    # Whether to require all messages to be encrypted and drop any unencrypted messages.
+    require: false
+    # Whether to use MSC3202/MSC4203 instead of /sync long polling for receiving encryption-related data.
+    # This option is not yet compatible with standard Matrix servers like Synapse and should not be used.
+    # Changing this option requires updating the appservice registration file.
+    appservice: false
+    # Whether to use MSC4190 instead of appservice login to create the bridge bot device.
+    # Requires the homeserver to support MSC4190 and the device masquerading parts of MSC3202.
+    # Only relevant when using end-to-bridge encryption, required when using encryption with next-gen auth (MSC3861).
+    # Changing this option requires updating the appservice registration file.
+    msc4190: false
+    # Should the bridge bot generate a recovery key and cross-signing keys and verify itself?
+    # Note that without the latest version of MSC4190, this will fail if you reset the bridge database.
+    # The generated recovery key will be saved in the kv_store table under `recovery_key`.
+    self_sign: false
+    # Enable key sharing? If enabled, key requests for rooms where users are in will be fulfilled.
+    # You must use a client that supports requesting keys from other users to use this feature.
+    allow_key_sharing: true
+    # Pickle key for encrypting encryption keys in the bridge database.
+    # If set to generate, a random key will be generated.
+    pickle_key: generate
+    # Options for deleting megolm sessions from the bridge.
+    delete_keys:
+        # Beeper-specific: delete outbound sessions when hungryserv confirms
+        # that the user has uploaded the key to key backup.
+        delete_outbound_on_ack: false
+        # Don't store outbound sessions in the inbound table.
+        dont_store_outbound: false
+        # Ratchet megolm sessions forward after decrypting messages.
+        ratchet_on_decrypt: false
+        # Delete fully used keys (index >= max_messages) after decrypting messages.
+        delete_fully_used_on_decrypt: false
+        # Delete previous megolm sessions from same device when receiving a new one.
+        delete_prev_on_new_session: false
+        # Delete megolm sessions received from a device when the device is deleted.
+        delete_on_device_delete: false
+        # Periodically delete megolm sessions when 2x max_age has passed since receiving the session.
+        periodically_delete_expired: false
+        # Delete inbound megolm sessions that don't have the received_at field used for
+        # automatic ratcheting and expired session deletion. This is meant as a migration
+        # to delete old keys prior to the bridge update.
+        delete_outdated_inbound: false
+    # What level of device verification should be required from users?
     #
-    # If set, double puppeting will be enabled automatically for local users
-    # instead of users having to find an access token and run `login-matrix`
-    # manually.
-    login_shared_secret_map:
-        example.com: foobar
-
-    # The prefix for commands. Only required in non-management rooms.
-    command_prefix: '!discord'
-    # Messages sent upon joining a management room.
-    # Markdown is supported. The defaults are listed below.
-    management_room_text:
-        # Sent when joining a room.
-        welcome: "Hello, I'm a Discord bridge bot."
-        # Sent when joining a management room and the user is already logged in.
-        welcome_connected: "Use `help` for help."
-        # Sent when joining a management room and the user is not logged in.
-        welcome_unconnected: "Use `help` for help or `login` to log in."
-        # Optional extra text sent when joining a management room.
-        additional_help: ""
-
-    # Settings for backfilling messages.
-    backfill:
-        # Limits for forward backfilling.
-        forward_limits:
-            # Initial backfill (when creating portal). 0 means backfill is disabled.
-            # A special unlimited value is not supported, you must set a limit. Initial backfill will
-            # fetch all messages first before backfilling anything, so high limits can take a lot of time.
-            initial:
-                dm: 0
-                channel: 0
-                thread: 0
-            # Missed message backfill (on startup).
-            # 0 means backfill is disabled, -1 means fetch all messages since last bridged message.
-            # When using unlimited backfill (-1), messages are backfilled as they are fetched.
-            # With limits, all messages up to the limit are fetched first and backfilled afterwards.
-            missed:
-                dm: 0
-                channel: 0
-                thread: 0
-        # Maximum members in a guild to enable backfilling. Set to -1 to disable limit.
-        # This can be used as a rough heuristic to disable backfilling in channels that are too active.
-        # Currently only applies to missed message backfill.
-        max_guild_members: -1
-
-    # End-to-bridge encryption support options.
-    #
-    # See https://docs.mau.fi/bridges/general/end-to-bridge-encryption.html for more info.
-    encryption:
-        # Allow encryption, work in group chat rooms with e2ee enabled
-        allow: false
-        # Default to encryption, force-enable encryption in all portals the bridge creates
-        # This will cause the bridge bot to be in private chats for the encryption to work properly.
-        default: false
-        # Whether to use MSC2409/MSC3202 instead of /sync long polling for receiving encryption-related data.
-        # Changing this option requires updating the appservice registration file.
-        appservice: false
-        # Whether to use MSC4190 instead of appservice login to create the bridge bot device.
-        # Requires the homeserver to support MSC4190 and the device masquerading parts of MSC3202.
-        # Only relevant when using end-to-bridge encryption, required when using encryption with next-gen auth (MSC3861).
-        # Changing this option requires updating the appservice registration file.
-        msc4190: false
-        # Require encryption, drop any unencrypted messages.
-        require: false
-        # Enable key sharing? If enabled, key requests for rooms where users are in will be fulfilled.
-        # You must use a client that supports requesting keys from other users to use this feature.
-        allow_key_sharing: false
-        # Should users mentions be in the event wire content to enable the server to send push notifications?
-        plaintext_mentions: false
-        # Options for deleting megolm sessions from the bridge.
-        delete_keys:
-            # Beeper-specific: delete outbound sessions when hungryserv confirms
-            # that the user has uploaded the key to key backup.
-            delete_outbound_on_ack: false
-            # Don't store outbound sessions in the inbound table.
-            dont_store_outbound: false
-            # Ratchet megolm sessions forward after decrypting messages.
-            ratchet_on_decrypt: false
-            # Delete fully used keys (index >= max_messages) after decrypting messages.
-            delete_fully_used_on_decrypt: false
-            # Delete previous megolm sessions from same device when receiving a new one.
-            delete_prev_on_new_session: false
-            # Delete megolm sessions received from a device when the device is deleted.
-            delete_on_device_delete: false
-            # Periodically delete megolm sessions when 2x max_age has passed since receiving the session.
-            periodically_delete_expired: false
-            # Delete inbound megolm sessions that don't have the received_at field used for
-            # automatic ratcheting and expired session deletion. This is meant as a migration
-            # to delete old keys prior to the bridge update.
-            delete_outdated_inbound: false
-        # What level of device verification should be required from users?
-        #
-        # Valid levels:
-        #   unverified - Send keys to all device in the room.
-        #   cross-signed-untrusted - Require valid cross-signing, but trust all cross-signing keys.
-        #   cross-signed-tofu - Require valid cross-signing, trust cross-signing keys on first use (and reject changes).
-        #   cross-signed-verified - Require valid cross-signing, plus a valid user signature from the bridge bot.
-        #                           Note that creating user signatures from the bridge bot is not currently possible.
-        #   verified - Require manual per-device verification
-        #              (currently only possible by modifying the `trust` column in the `crypto_device` database table).
-        verification_levels:
-            # Minimum level for which the bridge should send keys to when bridging messages from WhatsApp to Matrix.
-            receive: unverified
-            # Minimum level that the bridge should accept for incoming Matrix messages.
-            send: unverified
-            # Minimum level that the bridge should require for accepting key requests.
-            share: cross-signed-tofu
-        # Options for Megolm room key rotation. These options allow you to
-        # configure the m.room.encryption event content. See:
-        # https://spec.matrix.org/v1.3/client-server-api/#mroomencryption for
-        # more information about that event.
-        rotation:
-            # Enable custom Megolm room key rotation settings. Note that these
-            # settings will only apply to rooms created after this option is
-            # set.
-            enable_custom: false
-            # The maximum number of milliseconds a session should be used
-            # before changing it. The Matrix spec recommends 604800000 (a week)
-            # as the default.
-            milliseconds: 604800000
-            # The maximum number of messages that should be sent with a given a
-            # session before changing it. The Matrix spec recommends 100 as the
-            # default.
-            messages: 100
-
-            # Disable rotating keys when a user's devices change?
-            # You should not enable this option unless you understand all the implications.
-            disable_device_change_key_rotation: false
-
-    # Settings for provisioning API
-    provisioning:
-        # Prefix for the provisioning API paths.
-        prefix: /_matrix/provision
-        # Shared secret for authentication. If set to "generate", a random secret will be generated,
-        # or if set to "disable", the provisioning API will be disabled.
-        shared_secret: generate
-        # Enable debug API at /debug with provisioning authentication.
-        debug_endpoints: false
-
-    # Permissions for using the bridge.
-    # Permitted values:
-    #    relay - Talk through the relaybot (if enabled), no access otherwise
-    #     user - Access to use the bridge to chat with a Discord account.
-    #    admin - User level and some additional administration tools
-    # Permitted keys:
-    #        * - All Matrix users
-    #   domain - All users on that homeserver
-    #     mxid - Specific user
-    permissions:
-        "*": relay
-        "example.com": user
-        "@admin:example.com": admin
+    # Valid levels:
+    #   unverified - Send keys to all device in the room.
+    #   cross-signed-untrusted - Require valid cross-signing, but trust all cross-signing keys.
+    #   cross-signed-tofu - Require valid cross-signing, trust cross-signing keys on first use (and reject changes).
+    #   cross-signed-verified - Require valid cross-signing, plus a valid user signature from the bridge bot.
+    #                           Note that creating user signatures from the bridge bot is not currently possible.
+    #   verified - Require manual per-device verification
+    #              (currently only possible by modifying the `trust` column in the `crypto_device` database table).
+    verification_levels:
+        # Minimum level for which the bridge should send keys to when bridging messages from the remote network to Matrix.
+        receive: unverified
+        # Minimum level that the bridge should accept for incoming Matrix messages.
+        send: unverified
+        # Minimum level that the bridge should require for accepting key requests.
+        share: cross-signed-tofu
+    # Options for Megolm room key rotation. These options allow you to configure the m.room.encryption event content.
+    # See https://spec.matrix.org/v1.10/client-server-api/#mroomencryption for more information about that event.
+    rotation:
+        # Enable custom Megolm room key rotation settings. Note that these
+        # settings will only apply to rooms created after this option is set.
+        enable_custom: false
+        # The maximum number of milliseconds a session should be used
+        # before changing it. The Matrix spec recommends 604800000 (a week)
+        # as the default.
+        milliseconds: 604800000
+        # The maximum number of messages that should be sent with a given a
+        # session before changing it. The Matrix spec recommends 100 as the
+        # default.
+        messages: 100
+        # Disable rotating keys when a user's devices change?
+        # You should not enable this option unless you understand all the implications.
+        disable_device_change_key_rotation: false
 
 # Logging config. See https://github.com/tulir/zeroconfig for details.
 logging:
     min_level: debug
     writers:
-    - type: stdout
-      format: pretty-colored
-    - type: file
-      format: json
-      filename: ./logs/mautrix-discord.log
-      max_size: 100
-      max_backups: 10
-      compress: true
+        - type: stdout
+          format: pretty-colored
+        - type: file
+          format: json
+          filename: ./logs/bridge.log
+          max_size: 100
+          max_backups: 10
+          compress: false

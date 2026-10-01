@@ -1,0 +1,87 @@
+# Explicit channels take precedence over guild discovery. With the default
+# bot-only configuration, these are the only channels that can be bridged.
+# Supply tokens through provisioning or the login command, never in this file.
+channels: []
+# - id: "123456789012345678"
+#   room_id: "!room:example.com"       # Bind an existing Matrix room on connect.
+#   relay_login_id: "987654321098765432" # Discord bot user ID from login.
+#   webhook_url: ""                    # Optional existing incoming webhook.
+#   sync:                              # Override only the fields listed here.
+#       room_name: false
+#       room_topic: false
+
+# Create rooms for explicit channels without room_id when the account connects.
+auto_create_portals: false
+create_webhooks: true
+webhook_name: Matrix bridge
+webhook_avatars: true
+prefix_webhook_messages: false
+# Allow explicit user mentions. Everyone/here additionally requires Matrix
+# permission to send room notifications. Role mentions are not enabled.
+allow_mentions: false
+max_attachment_size: 26214400
+
+# Optional legacy account workflows; bot relay does not require these.
+personal_accounts: false
+sync_dms: true
+# Group personal DMs into a dedicated Matrix space.
+dm_spaces: true
+# 0 creates no DMs at startup; -1 creates all accessible DMs.
+startup_private_channel_create_limit: 20
+forbid_dming_strangers: false
+# Select guilds for discovery, independently of the explicit channel list.
+# Modes: nothing, if-portal-exists, create-on-message, everything.
+# Personal users can also choose guilds using provisioning or the guilds command.
+# Changing bot guild modes through commands/provisioning requires bridge admin.
+guilds: []
+# - id: "123456789012345678"
+#   mode: create-on-message
+guild_spaces: true
+restricted_rooms: false
+mute_channels_on_create: false
+delete_portal_on_channel_delete: false
+delete_guild_on_leave: false
+
+# Empty templates use Discord names, global names, and friend nicknames.
+# Display name fields include User fields, Webhook and Application.
+# Channel fields: Name, ParentName, GuildName, NSFW, Type. Guild fields: Guild fields.
+displayname_template: ""
+channel_name_template: ""
+guild_name_template: ""
+proxy: ""
+
+# Media upload reuse: always, unencrypted, never. Encryption is still applied
+# whenever an attachment is uploaded into an encrypted Matrix room.
+cache_media: unencrypted
+# Use Discord's separate attachment upload API for personal-account sends.
+use_discord_cdn_upload: true
+custom_emoji_reactions: true
+embed_fields_as_tables: false
+# Join Discord threads when Matrix read receipts indicate they were opened.
+autojoin_threads: false
+# Lottie stickers require lottieconverter and, for animated formats, ffmpeg.
+# Targets: disable, png, gif, webp, webm.
+animated_sticker:
+    target: disable
+    width: 160
+    height: 160
+    fps: 30
+
+# Defaults suit relay rooms with separately managed Matrix metadata. Per-channel
+# overrides also govern threads that share their parent's room.
+sync:
+    messages: true
+    attachments: true
+    embeds: true
+    stickers: true
+    edits: true
+    deletes: true
+    reactions: true
+    typing: false
+    read_receipts: false
+    user_profiles: true
+    room_name: false
+    room_topic: false
+    room_avatar: false
+    threads: false
+    backfill: false

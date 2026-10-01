@@ -1,0 +1,12 @@
+# Runtime credentials, databases, logs, and local tools are not build inputs.
+config.yaml
+registration.yaml
+*.db*
+*.log*
+.env
+.env.*
+.aws
+.codex
+.agents
+mautrix-discord
+start

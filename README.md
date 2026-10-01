@@ -1,19 +1,31 @@
 # mautrix-discord
-A Matrix-Discord puppeting bridge based on [discordgo](https://github.com/bwmarrin/discordgo).
 
-## Documentation
-All setup and usage instructions are located on [docs.mau.fi]. Some quick links:
+A Matrix–Discord bridge based on [bridgev2](https://github.com/mautrix/go/tree/main/bridgev2)
+and the [Discord client fork used by the original bridge](https://github.com/beeper/discordgo).
 
-[docs.mau.fi]: https://docs.mau.fi/bridges/go/discord/index.html
+The default configuration supports admin-managed bot relay with per-channel
+webhooks. Admins select channels, bind them to Matrix rooms through config,
+commands, or provisioning, and choose which messages and metadata are synced.
+Matrix members can use the relay without a Discord login.
 
-* [Bridge setup](https://docs.mau.fi/bridges/go/setup.html?bridge=discord)
-  (or [with Docker](https://docs.mau.fi/bridges/general/docker-setup.html?bridge=discord))
-* Basic usage: [Authentication](https://docs.mau.fi/bridges/go/discord/authentication.html),
-  [Relaying with webhooks](https://docs.mau.fi/bridges/go/discord/relay.html)
+Optional personal accounts restore the legacy token/QR login, DMs/group DMs,
+guild discovery and spaces, native replies, read state, and application commands.
+The port also includes rich formatting/embeds, custom emoji reuse, thread
+creation and history, direct media, and animated sticker conversion.
 
-### Features & Roadmap
-[ROADMAP.md](https://github.com/mautrix/discord/blob/main/ROADMAP.md)
-contains a general overview of what is supported by the bridge.
+See [setup, provisioning, and sync controls](docs/bridgev2.md),
+[example-config.yaml](example-config.yaml), and the [feature matrix](ROADMAP.md).
+Build with Go 1.24 or newer and a C compiler using `./build.sh`.
+Test with `go test -race -tags goolm ./...`.
+
+Use a fresh database and appservice registration. Database migration from the
+original bridge is outside this port's scope. The original implementation is
+preserved in the separate [legacy module](legacy/).
+
+Automated tests use mocked Discord/Matrix services, SQLite, and a local QR
+websocket exchange. Live Discord/homeserver validation is still required before
+using this version in production.
 
 ## Discussion
+
 Matrix room: [#discord:maunium.net](https://matrix.to/#/#discord:maunium.net)

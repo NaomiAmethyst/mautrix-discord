@@ -1,17 +1,17 @@
-FROM golang:1-alpine3.24 AS builder
+FROM golang:1.24-alpine AS builder
 
-RUN apk add --no-cache git ca-certificates build-base su-exec olm-dev
+RUN apk add --no-cache git ca-certificates build-base
 
 COPY . /build
 WORKDIR /build
-RUN go build -o /usr/bin/mautrix-discord
+RUN ./build.sh -o /usr/bin/mautrix-discord
 
-FROM alpine:3.24
+FROM alpine:3.22
 
 ENV UID=1337 \
     GID=1337
 
-RUN apk add --no-cache ffmpeg su-exec ca-certificates olm bash jq curl yq-go lottieconverter
+RUN apk add --no-cache su-exec ca-certificates ffmpeg lottieconverter
 
 COPY --from=builder /usr/bin/mautrix-discord /usr/bin/mautrix-discord
 COPY --from=builder /build/example-config.yaml /opt/mautrix-discord/example-config.yaml

@@ -10,14 +10,13 @@ import (
 	"strings"
 
 	"maunium.net/go/mautrix/bridgev2"
-	"maunium.net/go/mautrix/bridgev2/matrix"
 	"maunium.net/go/mautrix/bridgev2/networkid"
 	"maunium.net/go/mautrix/id"
 )
 
 // Routes are installed inside the central provisioning router, so its existing
 // bearer/Matrix authentication and user permission checks protect every route.
-func (d *DiscordConnector) RegisterProvisioning(prov matrix.IProvisioningAPI) {
+func (d *DiscordConnector) RegisterProvisioning(prov bridgev2.IProvisioningAPI) {
 	if prov == nil {
 		return
 	}

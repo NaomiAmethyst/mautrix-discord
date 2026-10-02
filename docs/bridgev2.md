@@ -7,11 +7,14 @@ not migrated. The old implementation remains in `legacy/` as a separate module.
 
 ## Admin-managed relay
 
-1. Build with Go 1.24+ and a C compiler: `./build.sh`. The default build uses
+1. Build with Go 1.26+ and a C compiler: `./build.sh`. The default build uses
    goolm; it does not require libolm. The Docker image includes sticker conversion
    tools. For a local build, install `lottieconverter` and `ffmpeg` if needed.
 2. Copy `example-config.yaml` to `config.yaml` and configure the homeserver,
    appservice, database, encryption, provisioning secret, and Matrix permissions.
+   Any field can also come from the environment: set `env_config_prefix` (say
+   `BRIDGE_`), then `BRIDGE_APPSERVICE__AS_TOKEN` sets `appservice.as_token`, and
+   a `_FILE` suffix reads the value from a file (for container secrets).
 3. Keep `bridge.split_portals: false`, `bridge.relay.enabled: true`, and
    `bridge.relay.admin_only: true` for shared relay rooms. Set your Matrix account
    to `admin`; other participating users need `relay` permission.

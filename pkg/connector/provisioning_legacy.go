@@ -11,11 +11,10 @@ import (
 
 	"github.com/coder/websocket"
 	"maunium.net/go/mautrix/bridgev2"
-	"maunium.net/go/mautrix/bridgev2/matrix"
 	"maunium.net/go/mautrix/bridgev2/status"
 )
 
-func (d *DiscordConnector) requestClient(prov matrix.IProvisioningAPI, r *http.Request) (*DiscordClient, error) {
+func (d *DiscordConnector) requestClient(prov bridgev2.IProvisioningAPI, r *http.Request) (*DiscordClient, error) {
 	user := prov.GetUser(r)
 	login := user.GetDefaultLogin()
 	if login == nil {
@@ -27,7 +26,7 @@ func (d *DiscordConnector) requestClient(prov matrix.IProvisioningAPI, r *http.R
 	}
 	return c, nil
 }
-func (d *DiscordConnector) registerLegacyProvisioning(prov matrix.IProvisioningAPI) {
+func (d *DiscordConnector) registerLegacyProvisioning(prov bridgev2.IProvisioningAPI) {
 	router := prov.GetRouter()
 	router.HandleFunc("GET /v1/ping", func(w http.ResponseWriter, r *http.Request) {
 		user := prov.GetUser(r)

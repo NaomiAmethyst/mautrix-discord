@@ -15,7 +15,7 @@ creation and history, direct media, and animated sticker conversion.
 
 See [setup, provisioning, and sync controls](docs/bridgev2.md),
 [example-config.yaml](example-config.yaml), and the [feature matrix](ROADMAP.md).
-Build with Go 1.24 or newer and a C compiler using `./build.sh`.
+Build with Go 1.26 or newer and a C compiler using `./build.sh`.
 Test with `go test -race -tags goolm ./...`.
 
 Use a fresh database and appservice registration. Database migration from the

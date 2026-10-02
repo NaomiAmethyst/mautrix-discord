@@ -88,6 +88,8 @@ network:
         threads: false
         backfill: false
 
+
+# Config options that affect the central bridge module.
 bridge:
     # The prefix for commands. Only required in non-management rooms.
     command_prefix: '!discord'
@@ -115,9 +117,18 @@ bridge:
     # These contain the same data that can be posted to an external HTTP server using homeserver -> status_endpoint.
     # Allowed values: none, errors, all
     bridge_status_notices: errors
+    # How long should TRANSIENT_DISCONNECT and CONNECTING states be held back before being reported?
+    # If another state update occurs while waiting, the previous state won't be reported at all.
+    transient_state_debounce: 0s
+    # When an outgoing message can't be sent because the login is not connected (e.g. mid-reconnect),
+    # wait this long for it to reconnect before failing the message.
+    send_reconnect_wait: 0s
     # How long after an unknown error should the bridge attempt a full reconnect?
     # Must be at least 1 minute. The bridge will add an extra ±20% jitter to this value.
     unknown_error_auto_reconnect: null
+    # Maximum number of times to do the auto-reconnect above.
+    # The counter is per login, but is never reset except on logout and restart.
+    unknown_error_max_auto_reconnects: 10
 
     # Should leaving Matrix rooms be bridged as leaving groups on the remote network?
     bridge_matrix_leave: false
@@ -133,9 +144,21 @@ bridge:
     mute_only_on_create: true
     # Should the bridge check the db to ensure that incoming events haven't been handled before
     deduplicate_matrix_messages: false
+    # Size of the portal event buffer. Don't touch if you don't know what it means.
+    portal_event_buffer: 64
     # Should cross-room reply metadata be bridged?
     # Most Matrix clients don't support this and servers may reject such messages too.
     cross_room_replies: false
+    # If a state event fails to bridge, should the bridge revert any state changes made by that event?
+    revert_failed_state_changes: false
+    # In portals with no relay set, should Matrix users be kicked if they're
+    # not logged into an account that's in the remote chat?
+    kick_matrix_users: true
+    # Should the bridge listen to com.beeper.state_request events?
+    # This is not necessary for anything outside of Beeper.
+    enable_send_state_requests: false
+    # Should the com.beeper.bridge.identifiers list in global ghost profiles include phone numbers?
+    phone_numbers_in_profile: false
 
     # What should be done to portal rooms when a user logs out or is logged out?
     # Permitted values:
@@ -172,12 +195,22 @@ bridge:
         # Should only admins be allowed to set themselves as relay users?
         # If true, non-admins can only set users listed in default_relays as relays in a room.
         admin_only: true
+        # Should default relays be preferred when an explicit login ID isn't specified even if the user is logged in?
+        # This applies to the set-relay and bridge commands sent by any user, including admins.
+        prefer_default: true
+        # Should non-admins be allowed to use the bridge and sync-chat commands via default relays specified below?
+        allow_bridge: true
         # List of user login IDs which anyone can set as a relay, as long as the relay user is in the room.
         default_relays: []
+        # An array of possible values for the .Sender.Distinguisher variable in message formats.
+        # Each user gets one of the values here, based on a hash of their Matrix user ID.
+        # If the array is empty, .Sender.Distinguisher will also be empty.
+        user_distinguishers: ["🟦", "🟣", "🟩", "⭕️", "🔶", "⬛️", "🔵", "🟢"]
         # The formats to use when sending messages via the relaybot.
         # Available variables:
         #   .Sender.UserID - The Matrix user ID of the sender.
         #   .Sender.Displayname - The display name of the sender (if set).
+        #   .Sender.Distinguisher - The stable distinguisher selected from user_distinguishers.
         #   .Sender.RequiresDisambiguation - Whether the sender's name may be confused with the name of another user in the room.
         #   .Sender.DisambiguatedName - The disambiguated name of the sender. This will be the displayname if set,
         #                               plus the user ID in parentheses if the displayname is not unique.
@@ -198,6 +231,19 @@ bridge:
         # This has all the Sender variables available under message_formats (but without the .Sender prefix).
         # Note that you need to manually remove the displayname from message_formats above.
         displayname_format: "{{ .DisambiguatedName }}"
+
+    # Filter for automatically creating portals.
+    portal_create_filter:
+        # The mode for filtering, either `deny` or `allow`
+        mode: deny
+        # The list of portal IDs to deny or allow depending on the mode config.
+        # Items here can either be the plain portal ID as a string, or an object with `id` and `receiver` fields.
+        # The receiver field is necessary if you want to target a specific DM portal for example.
+        list: []
+        # A list of user login IDs from which to always deny creating portals.
+        # This is meant to be used with default relays, such that the relay bot
+        # being added to a group wouldn't automatically trigger portal creation.
+        always_deny_from_login: []
 
     # Permissions for using the bridge.
     # Permitted values:
@@ -223,6 +269,7 @@ database:
     #           https://github.com/mattn/go-sqlite3#connection-string
     #   Postgres: Connection string. For example, postgres://user:password@host/database?sslmode=disable
     #             To connect via Unix socket, use something like postgres:///dbname?host=/var/run/postgresql
+    #             Using special characters in the password is strongly discouraged (but should work with manual URL encoding)
     uri: postgres://user:password@host/database?sslmode=disable
     # Maximum number of connections.
     max_open_conns: 5
@@ -263,6 +310,9 @@ homeserver:
     websocket: false
     # How often should the websocket be pinged? Pinging will be disabled if this is zero.
     ping_interval_seconds: 0
+    # When requests to the homeserver fail with a 502/503/504/429 status or a network error,
+    # how many times should the bridge retry the request before giving up?
+    retry_limit: 4
 
 # Application service host/registration related details.
 # Changing these values requires regeneration of the registration (except when noted otherwise)
@@ -325,6 +375,9 @@ matrix:
     # The threshold as bytes after which the bridge should roundtrip uploads via the disk
     # rather than keeping the whole file in memory.
     upload_file_threshold: 5242880
+    # Should the bridge set additional custom profile info for ghosts?
+    # This can make a lot of requests, as there's no batch profile update endpoint.
+    ghost_extra_profile_info: false
 
 # Segment-compatible analytics endpoint for tracking some events, like provisioning API login and encryption errors.
 analytics:
@@ -349,6 +402,13 @@ provisioning:
     # Enable session transfers between bridges. Note that this only validates Matrix or shared secret
     # auth before passing live network client credentials down in the response.
     enable_session_transfers: false
+    # Should the provisioning API fail immediately if a webauthn step is returned?
+    # This is mostly useful for clients that don't yet support it and want a trackable error instead.
+    fail_on_webauthn: false
+    # The header that the request ID is sent back in.
+    request_id_header: Request-Id
+    # Should the request ID be read from the above header of incoming requests
+    trust_incoming_request_id: false
 
 # Some networks require publicly accessible media download links (e.g. for user avatars when using Discord webhooks).
 # These settings control whether the bridge will provide such public media access.
@@ -364,6 +424,14 @@ public_media:
     expiry: 0
     # Length of hash to use for public media URLs. Must be between 0 and 32.
     hash_length: 32
+    # The path prefix for generated URLs. Note that this will NOT change the path where media is actually served.
+    # If you change this, you must configure your reverse proxy to rewrite the path accordingly.
+    path_prefix: /_mautrix/publicmedia
+    # Should the bridge store media metadata in the database in order to support encrypted media and generate shorter URLs?
+    # If false, the generated URLs will just have the MXC URI and a HMAC signature.
+    # The hash_length field will be used to decide the length of the generated URL.
+    # This also allows invalidating URLs by deleting the database entry.
+    use_database: false
 
 # Settings for converting remote media to custom mxc:// URIs instead of reuploading.
 # More details can be found at https://docs.mau.fi/bridges/go/discord/direct-media.html
@@ -394,6 +462,7 @@ backfill:
     # Whether to do backfilling at all.
     enabled: false
     # Maximum number of messages to backfill in empty rooms.
+    # If this is zero or negative, backfill will be disabled in new rooms.
     max_initial_messages: 50
     # Maximum number of missed messages to backfill after bridge restarts.
     max_catchup_messages: 500
@@ -409,6 +478,8 @@ backfill:
     queue:
         # Should the backfill queue be enabled?
         enabled: false
+        # Should manual calls to backfill queue tasks be allowed?
+        manual: false
         # Number of messages to backfill in one batch.
         batch_size: 100
         # Delay between batches in seconds.
@@ -446,14 +517,16 @@ encryption:
     # Whether to require all messages to be encrypted and drop any unencrypted messages.
     require: false
     # Whether to use MSC3202/MSC4203 instead of /sync long polling for receiving encryption-related data.
-    # This option is not yet compatible with standard Matrix servers like Synapse and should not be used.
+    # This is an experimental option, see the docs for more info.
     # Changing this option requires updating the appservice registration file.
     appservice: false
     # Whether to use MSC4190 instead of appservice login to create the bridge bot device.
     # Requires the homeserver to support MSC4190 and the device masquerading parts of MSC3202.
     # Only relevant when using end-to-bridge encryption, required when using encryption with next-gen auth (MSC3861).
-    # Changing this option requires updating the appservice registration file.
     msc4190: false
+    # Whether to encrypt reactions and reply metadata as per MSC4392.
+    # This is not supported by most clients.
+    msc4392: false
     # Should the bridge bot generate a recovery key and cross-signing keys and verify itself?
     # Note that without the latest version of MSC4190, this will fail if you reset the bridge database.
     # The generated recovery key will be saved in the kv_store table under `recovery_key`.
@@ -461,6 +534,8 @@ encryption:
     # Enable key sharing? If enabled, key requests for rooms where users are in will be fulfilled.
     # You must use a client that supports requesting keys from other users to use this feature.
     allow_key_sharing: true
+    # Should m.mentions be sent in the unencrypted content? This is non-standard and should not be enabled.
+    plaintext_mentions: false
     # Pickle key for encrypting encryption keys in the bridge database.
     # If set to generate, a random key will be generated.
     pickle_key: generate
@@ -519,6 +594,19 @@ encryption:
         # Disable rotating keys when a user's devices change?
         # You should not enable this option unless you understand all the implications.
         disable_device_change_key_rotation: false
+
+# Prefix for environment variables. All variables with this prefix must map to valid config fields.
+# Nesting in variable names is represented with a dot (.).
+# If there are no dots in the name, two underscores (__) are replaced with a dot.
+#
+# e.g. if the prefix is set to `BRIDGE_`, then `BRIDGE_APPSERVICE__AS_TOKEN` will set appservice.as_token.
+# `BRIDGE_appservice.as_token` would work as well, but can't be set in a shell as easily.
+#
+# The variable names can also have a `_FILE` suffix to tell the bridge to read the value from the
+# path set in the variable rather than using the value directly.
+#
+# If this is null, reading config fields from environment will be disabled.
+env_config_prefix: null
 
 # Logging config. See https://github.com/tulir/zeroconfig for details.
 logging:

@@ -4,6 +4,7 @@ package connector
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/rs/zerolog"
 	"go.mau.fi/util/ptr"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/database"
@@ -333,4 +335,64 @@ func (d *DiscordConnector) bindChannel(ctx context.Context, c *DiscordClient, ch
 
 func (c *DiscordClient) messageSender(uid string) bridgev2.EventSender {
 	return bridgev2.EventSender{Sender: networkid.UserID(uid), IsFromMe: uid == string(c.UserLogin.ID), SenderLogin: loginIDIf(uid == string(c.UserLogin.ID), c.UserLogin.ID)}
+}
+
+var errNotBridged = errors.New("channel is not bridged")
+
+// unbindChannel forgets a channel's portal and leaves its Matrix room as it was
+// for the people in it: the room isn't deleted and nobody but the bridge's own
+// users (its ghosts and bot) leaves. Bridgev2's DeleteRoom isn't used, as it
+// deletes the whole room where the homeserver can.
+func (d *DiscordConnector) unbindChannel(ctx context.Context, channelID string) (id.RoomID, error) {
+	d.bindMu.Lock()
+	defer d.bindMu.Unlock()
+	portal, err := d.Bridge.GetExistingPortalByKey(ctx, networkid.PortalKey{ID: networkid.PortalID(channelID)})
+	if err != nil {
+		return "", err
+	}
+	if portal == nil || portal.MXID == "" {
+		return "", errNotBridged
+	}
+	roomID := portal.MXID
+	log := zerolog.Ctx(ctx).With().Str("channel_id", channelID).Stringer("room_id", roomID).Logger()
+	// Deleted first, so nothing more is bridged while the room's cleaned up.
+	if err = portal.Delete(ctx); err != nil {
+		return "", err
+	}
+	members, err := d.Bridge.Matrix.GetMembers(ctx, roomID)
+	if err != nil {
+		log.Err(err).Msg("Failed to get members to remove ghosts from unbridged room")
+	}
+	for userID, member := range members {
+		if member.Membership != event.MembershipJoin && member.Membership != event.MembershipInvite {
+			continue
+		}
+		if ghostID, ok := d.Bridge.Matrix.ParseGhostMXID(userID); ok {
+			if err = leave(ctx, d.Bridge.Matrix.GhostIntent(ghostID), roomID); err != nil {
+				log.Err(err).Stringer("user_id", userID).Msg("Failed to remove ghost from unbridged room")
+			}
+		}
+	}
+	bot := d.Bridge.Bot
+	stateKey := string(portal.BridgeID)
+	if d.Bridge.Config.NoBridgeInfoStateKey {
+		stateKey = ""
+	} else if provider, ok := d.Bridge.Matrix.(bridgev2.MatrixConnectorWithBridgeIdentifier); ok {
+		stateKey = provider.GetUniqueBridgeID()
+	}
+	for _, kind := range []event.Type{event.StateBridge, event.StateHalfShotBridge} {
+		if _, err = bot.SendState(ctx, roomID, kind, stateKey, &event.Content{Raw: map[string]any{}}, time.Time{}); err != nil {
+			log.Err(err).Stringer("event_type", kind).Msg("Failed to clear bridge info from unbridged room")
+		}
+	}
+	if err = leave(ctx, bot, roomID); err != nil {
+		log.Err(err).Msg("Failed to leave unbridged room")
+	}
+	return roomID, nil
+}
+
+func leave(ctx context.Context, intent bridgev2.MatrixAPI, roomID id.RoomID) error {
+	_, err := intent.SendState(ctx, roomID, event.StateMember, intent.GetMXID().String(),
+		&event.Content{Parsed: &event.MemberEventContent{Membership: event.MembershipLeave}}, time.Time{})
+	return err
 }

@@ -197,6 +197,28 @@ curl -H "Authorization: Bearer $PROVISIONING_SECRET" \
   'http://localhost:29334/_matrix/provision/v3/discord/channels/123456789012345678/bridge?user_id=@admin:example.org'
 ```
 
+A channel can be bound if it's in `network.channels`, or if its guild's mode in
+`network.guilds` allows it. For channels made on the fly (by a reconciler that
+creates a channel per chat, say), set the guild to `if-portal-exists`: only
+channels bound this way are bridged, and none need listing first. A channel made
+moments before binding is fetched from Discord if the gateway hasn't delivered it
+yet.
+
+Unbinding forgets a channel's portal and leaves its Matrix room to the people in
+it: the bridge's ghosts and bot leave, and its `m.bridge` state is cleared, but
+nobody else is removed and the room isn't deleted. The room can then be bound to
+another channel. Webhooks the bridge made in the channel are left; deleting the
+channel removes them.
+
+```sh
+curl -X DELETE -H "Authorization: Bearer $PROVISIONING_SECRET" \
+  'http://localhost:29334/_matrix/provision/v3/discord/channels/123456789012345678/bridge?user_id=@admin:example.org'
+```
+
+Binding syncs the login's own membership: its owner (the Matrix user who logged
+in) is invited to the room, unless they're already in it. Logging the bot in as
+the Matrix user that makes the rooms avoids inviting anyone else.
+
 Guild discovery uses `GET /v3/discord/guilds` and `POST
 /v3/discord/guilds/{guildID}` with `{"mode":"create-on-message"}`. Personal users
 can select their guilds; bot users require admin. `DELETE` unbridges the guild

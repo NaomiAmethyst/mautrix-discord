@@ -238,9 +238,9 @@ func TestProvisioningAdminAndChannelGuards(t *testing.T) {
 		t.Fatal("empty channel listing failed or exposed credentials")
 	}
 	resp = httptest.NewRecorder()
-	prov.router.ServeHTTP(resp, httptest.NewRequest(http.MethodPost, "/v3/discord/channels/123/bridge", strings.NewReader(`{"room_id":"!room:example.org","login_id":"456"}`)))
-	if resp.Code != http.StatusForbidden {
-		t.Fatal("provisioning allowed a non-allowlisted channel")
+	prov.router.ServeHTTP(resp, httptest.NewRequest(http.MethodPost, "/v3/discord/channels/not-a-channel/bridge", strings.NewReader(`{"room_id":"!room:example.org","login_id":"456"}`)))
+	if resp.Code != http.StatusBadRequest {
+		t.Fatalf("provisioning accepted an invalid channel ID: %d", resp.Code)
 	}
 }
 

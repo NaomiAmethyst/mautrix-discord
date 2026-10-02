@@ -55,8 +55,8 @@ func (d *DiscordConnector) RegisterProvisioning(prov matrix.IProvisioningAPI) {
 			return
 		}
 		channelID := r.PathValue("channelID")
-		if d.Config.channel(channelID) == nil {
-			writeError(w, http.StatusForbidden, "M_FORBIDDEN", "Channel is not in network.channels")
+		if !validSnowflake(channelID) {
+			writeError(w, http.StatusBadRequest, "M_BAD_JSON", "Invalid channel ID")
 			return
 		}
 		var request struct {
@@ -83,8 +83,18 @@ func (d *DiscordConnector) RegisterProvisioning(prov matrix.IProvisioningAPI) {
 			writeError(w, http.StatusConflict, "M_UNKNOWN", "Discord login is unavailable")
 			return
 		}
+		// A channel made moments ago may not have reached the gateway cache yet;
+		// fetching it adds it, so it's judged like any other.
+		if _, err = client.channel(r.Context(), channelID); err != nil {
+			writeError(w, http.StatusNotFound, "M_NOT_FOUND", "Discord channel not found")
+			return
+		}
 		if !client.allowed(channelID) {
-			writeError(w, http.StatusForbidden, "M_FORBIDDEN", "Channel is assigned to a different relay login")
+			if config := d.Config.channel(channelID); config != nil {
+				writeError(w, http.StatusForbidden, "M_FORBIDDEN", "Channel is assigned to a different relay login")
+			} else {
+				writeError(w, http.StatusForbidden, "M_FORBIDDEN", "Channel is not in network.channels, and its guild's mode in network.guilds doesn't allow it")
+			}
 			return
 		}
 		portal, err := d.bindChannel(r.Context(), client, channelID, request.RoomID)
@@ -93,6 +103,22 @@ func (d *DiscordConnector) RegisterProvisioning(prov matrix.IProvisioningAPI) {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"room_id": portal.MXID, "channel_id": channelID, "relay_login_id": login.ID})
+	})
+	prov.GetRouter().HandleFunc("DELETE /v3/discord/channels/{channelID}/bridge", func(w http.ResponseWriter, r *http.Request) {
+		if !prov.GetUser(r).Permissions.Admin {
+			writeError(w, http.StatusForbidden, "M_FORBIDDEN", "Bridge admin permission required")
+			return
+		}
+		channelID := r.PathValue("channelID")
+		roomID, err := d.unbindChannel(r.Context(), channelID)
+		if err == errNotBridged {
+			writeError(w, http.StatusNotFound, "M_NOT_FOUND", "Channel is not bridged")
+			return
+		} else if err != nil {
+			writeError(w, http.StatusInternalServerError, "M_UNKNOWN", err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"room_id": roomID, "channel_id": channelID})
 	})
 }
 

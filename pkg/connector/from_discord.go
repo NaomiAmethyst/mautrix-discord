@@ -20,7 +20,7 @@ import (
 )
 
 func (c *DiscordClient) registerEvents() {
-	c.Session.AddHandler(func(_ *discordgo.Session, ready *discordgo.Ready) {
+	c.on(func(_ *discordgo.Session, ready *discordgo.Ready) {
 		if c.loggedOut.Load() {
 			return
 		}
@@ -28,40 +28,40 @@ func (c *DiscordClient) registerEvents() {
 		c.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateConnected})
 		go c.onReady(ready)
 	})
-	c.Session.AddHandler(func(_ *discordgo.Session, _ *discordgo.Resumed) {
+	c.on(func(_ *discordgo.Session, _ *discordgo.Resumed) {
 		if c.loggedOut.Load() {
 			return
 		}
 		c.gatewayConnected.Store(true)
 		c.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateConnected})
 	})
-	c.Session.AddHandler(func(_ *discordgo.Session, _ *discordgo.Disconnect) {
+	c.on(func(_ *discordgo.Session, _ *discordgo.Disconnect) {
 		c.gatewayConnected.Store(false)
 		if !c.loggedOut.Load() {
 			c.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateTransientDisconnect})
 		}
 	})
-	c.Session.AddHandler(func(_ *discordgo.Session, _ *discordgo.InvalidAuth) {
+	c.on(func(_ *discordgo.Session, _ *discordgo.InvalidAuth) {
 		c.loggedOut.Store(true)
 		c.Main.clients.Delete(c.UserLogin.ID)
 		c.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Error: "discord-invalid-token", Message: "Discord rejected the stored token. Log in again."})
 		go c.Disconnect()
 	})
-	c.Session.AddHandler(func(_ *discordgo.Session, evt *discordgo.MessageCreate) { c.onMessage(evt.Message, false) })
-	c.Session.AddHandler(func(_ *discordgo.Session, evt *discordgo.MessageUpdate) { c.onMessage(evt.Message, true) })
-	c.Session.AddHandler(func(_ *discordgo.Session, evt *discordgo.MessageDelete) { c.onDelete(evt.ChannelID, evt.ID) })
-	c.Session.AddHandler(func(_ *discordgo.Session, evt *discordgo.MessageDeleteBulk) {
+	c.on(func(_ *discordgo.Session, evt *discordgo.MessageCreate) { c.onMessage(evt.Message, false) })
+	c.on(func(_ *discordgo.Session, evt *discordgo.MessageUpdate) { c.onMessage(evt.Message, true) })
+	c.on(func(_ *discordgo.Session, evt *discordgo.MessageDelete) { c.onDelete(evt.ChannelID, evt.ID) })
+	c.on(func(_ *discordgo.Session, evt *discordgo.MessageDeleteBulk) {
 		for _, messageID := range evt.Messages {
 			c.onDelete(evt.ChannelID, messageID)
 		}
 	})
-	c.Session.AddHandler(func(_ *discordgo.Session, evt *discordgo.MessageReactionAdd) {
+	c.on(func(_ *discordgo.Session, evt *discordgo.MessageReactionAdd) {
 		c.onReaction(evt.MessageReaction, false)
 	})
-	c.Session.AddHandler(func(_ *discordgo.Session, evt *discordgo.MessageReactionRemove) {
+	c.on(func(_ *discordgo.Session, evt *discordgo.MessageReactionRemove) {
 		c.onReaction(evt.MessageReaction, true)
 	})
-	c.Session.AddHandler(func(_ *discordgo.Session, evt *discordgo.TypingStart) {
+	c.on(func(_ *discordgo.Session, evt *discordgo.TypingStart) {
 		meta, _ := c.eventMeta(c.Main.Bridge.BackgroundCtx, evt.ChannelID, evt.UserID, time.Unix(int64(evt.Timestamp), 0), bridgev2.RemoteEventTyping)
 		if meta.PortalKey.ID == "" || !enabled(c.Main.Config.syncFor(string(meta.PortalKey.ID)).Typing) || evt.UserID == string(c.UserLogin.ID) {
 			return
@@ -69,39 +69,39 @@ func (c *DiscordClient) registerEvents() {
 		meta.CreatePortal = false
 		c.UserLogin.QueueRemoteEvent(&simplevent.Typing{EventMeta: meta, Timeout: 8 * time.Second})
 	})
-	c.Session.AddHandler(func(_ *discordgo.Session, evt *discordgo.ThreadCreate) { go c.syncThread(evt.Channel) })
-	c.Session.AddHandler(func(_ *discordgo.Session, evt *discordgo.ThreadListSync) {
+	c.on(func(_ *discordgo.Session, evt *discordgo.ThreadCreate) { go c.syncThread(evt.Channel) })
+	c.on(func(_ *discordgo.Session, evt *discordgo.ThreadListSync) {
 		for _, ch := range evt.Threads {
 			go c.syncThread(ch)
 		}
 	})
-	c.Session.AddHandler(func(_ *discordgo.Session, evt *discordgo.MessageAck) { c.onReadAck(evt.ChannelID, evt.MessageID) })
-	c.Session.AddHandler(func(_ *discordgo.Session, evt *discordgo.InteractionSuccess) {
+	c.on(func(_ *discordgo.Session, evt *discordgo.MessageAck) { c.onReadAck(evt.ChannelID, evt.MessageID) })
+	c.on(func(_ *discordgo.Session, evt *discordgo.InteractionSuccess) {
 		if pending, ok := c.interactions.LoadAndDelete(evt.Nonce); ok {
 			pending.(*commands.Event).React("✅")
 		}
 	})
-	c.Session.AddHandler(func(_ *discordgo.Session, evt *discordgo.ChannelCreate) {
+	c.on(func(_ *discordgo.Session, evt *discordgo.ChannelCreate) {
 		c.queueChannel(evt.Channel, c.canCreate(evt.ID))
 	})
-	c.Session.AddHandler(func(_ *discordgo.Session, evt *discordgo.ChannelDelete) { c.onChannelDelete(evt.Channel) })
-	c.Session.AddHandler(func(_ *discordgo.Session, evt *discordgo.GuildCreate) { go c.syncGuild(evt.Guild) })
-	c.Session.AddHandler(func(_ *discordgo.Session, evt *discordgo.GuildDelete) {
+	c.on(func(_ *discordgo.Session, evt *discordgo.ChannelDelete) { c.onChannelDelete(evt.Channel) })
+	c.on(func(_ *discordgo.Session, evt *discordgo.GuildCreate) { go c.syncGuild(evt.Guild) })
+	c.on(func(_ *discordgo.Session, evt *discordgo.GuildDelete) {
 		if !evt.Unavailable {
 			go c.guildLeft(c.Main.Bridge.BackgroundCtx, evt.ID)
 		}
 	})
-	c.Session.AddHandler(func(_ *discordgo.Session, evt *discordgo.GuildUpdate) { go c.syncGuild(evt.Guild) })
-	c.Session.AddHandler(func(_ *discordgo.Session, evt *discordgo.RelationshipAdd) {
+	c.on(func(_ *discordgo.Session, evt *discordgo.GuildUpdate) { go c.syncGuild(evt.Guild) })
+	c.on(func(_ *discordgo.Session, evt *discordgo.RelationshipAdd) {
 		c.updateRelationship(evt.Relationship, false)
 	})
-	c.Session.AddHandler(func(_ *discordgo.Session, evt *discordgo.RelationshipUpdate) {
+	c.on(func(_ *discordgo.Session, evt *discordgo.RelationshipUpdate) {
 		c.updateRelationship(evt.Relationship, false)
 	})
-	c.Session.AddHandler(func(_ *discordgo.Session, evt *discordgo.RelationshipRemove) {
+	c.on(func(_ *discordgo.Session, evt *discordgo.RelationshipRemove) {
 		c.updateRelationship(evt.Relationship, true)
 	})
-	c.Session.AddHandler(func(_ *discordgo.Session, evt *discordgo.ChannelUpdate) {
+	c.on(func(_ *discordgo.Session, evt *discordgo.ChannelUpdate) {
 		if !c.allowed(evt.ID) {
 			return
 		}
@@ -111,6 +111,7 @@ func (c *DiscordClient) registerEvents() {
 				PortalKey: c.portalKey(evt.ID)}, GetChatInfoFunc: c.GetChatInfo})
 		}
 	})
+	c.startDispatch()
 }
 
 func (c *DiscordClient) fromOwnWebhook(id string) bool {

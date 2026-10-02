@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -34,6 +35,12 @@ type DiscordClient struct {
 	connected        bool
 	loggedOut        atomic.Bool
 	gatewayConnected atomic.Bool
+
+	// Gateway event handlers, by event type, and the queue they're run from (see dispatch.go).
+	handlers map[reflect.Type][]reflect.Value
+	events   chan any
+	stopped  chan struct{}
+	stopOnce sync.Once
 }
 
 var _ bridgev2.NetworkAPI = (*DiscordClient)(nil)
@@ -65,6 +72,7 @@ func (c *DiscordClient) LogoutRemote(context.Context) {
 	c.loggedOut.Store(true)
 	c.Main.clients.Delete(c.UserLogin.ID)
 	c.Disconnect()
+	c.stopDispatch()
 }
 func (c *DiscordClient) IsLoggedIn() bool { return !c.loggedOut.Load() }
 func (c *DiscordClient) IsThisUser(_ context.Context, userID networkid.UserID) bool {

@@ -136,6 +136,8 @@ func (d *DiscordConnector) LoadUserLogin(ctx context.Context, login *bridgev2.Us
 			discordgo.IntentsGuildMessageReactions | discordgo.IntentsGuildMessageTyping
 	}
 	session.State.MaxMessageCount = 100
+	session.LogLevel = discordgo.LogInformational
+	session.Logger = discordLogger(login.Log.With().Str("component", "discordgo").Logger())
 	session.Client = d.HTTP
 	gatewayHTTP := *d.HTTP
 	gatewayHTTP.Timeout = 0
@@ -145,6 +147,7 @@ func (d *DiscordConnector) LoadUserLogin(ctx context.Context, login *bridgev2.Us
 	if login.Client != nil {
 		if previous, ok := login.Client.(*DiscordClient); ok {
 			previous.loggedOut.Store(true)
+			defer previous.stopDispatch()
 		}
 		login.Client.Disconnect()
 	}

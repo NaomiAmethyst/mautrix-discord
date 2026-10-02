@@ -26,6 +26,10 @@ func (c *DiscordClient) GetCapabilities(_ context.Context, portal *bridgev2.Port
 		TypingNotifications: allowed && enabled(sc.Typing),
 		Thread:              event.CapLevelRejected,
 		File:                event.FileFeatureMap{},
+		// Relayed messages go through the channel's webhook, under the Matrix sender's own name
+		// and avatar, so the bridge leaves them as they are rather than prefixing the sender's
+		// name (bridge.relay.message_formats).
+		PerMessageProfileRelay: allowed,
 	}
 	if allowed && enabled(sc.Threads) {
 		features.Thread = event.CapLevelFullySupported

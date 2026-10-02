@@ -34,9 +34,10 @@ not migrated. The old implementation remains in `legacy/` as a separate module.
    [login ID]` in the destination room. Binding enables relay and rejects
    conflicting mappings.
 
-The repository example already has relay message formats without a sender
-prefix, because the Discord webhook username supplies attribution. If using a
-framework-generated example, configure these defaults yourself:
+Relayed messages are posted through the channel's webhook under the Matrix
+sender's name and avatar, so the bridge declares per-message profiles and
+`bridge.relay.message_formats` isn't applied to them: no "Name: " prefix,
+whatever the formats say. The repository example's plain formats, for reference:
 
 ```yaml
 bridge:
